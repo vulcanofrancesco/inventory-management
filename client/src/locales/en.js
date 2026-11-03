@@ -6,6 +6,7 @@ export default {
     orders: 'Orders',
     finance: 'Finance',
     demandForecast: 'Demand Forecast',
+    restocking: 'Restocking',
     companyName: 'Catalyst Components',
     subtitle: 'Inventory Management System'
   },
@@ -106,6 +107,18 @@ export default {
     title: 'Orders',
     description: 'View and manage customer orders',
     allOrders: 'All Orders',
+    submittedOrders: 'Submitted Orders',
+    submittedTable: {
+      orderNumber: 'Order #',
+      items: 'Items',
+      total: 'Total',
+      submitted: 'Submitted',
+      leadTime: 'Lead Time',
+      expectedDelivery: 'Expected Delivery',
+      status: 'Status'
+    },
+    leadTimeDays: '{count} days',
+    submittedStatus: 'Submitted',
     totalOrders: 'Total Orders',
     totalRevenue: 'Total Revenue',
     avgOrderValue: 'Avg Order Value',
@@ -210,6 +223,35 @@ export default {
   },
 
   // Trends
+  restocking: {
+    title: 'Restocking',
+    description: 'Set a budget and restock the items with the most pressing forecast demand',
+    budget: 'Available budget',
+    coverAll: 'Covers all needs',
+    selectedTotal: 'Order Total',
+    remaining: 'Remaining Budget',
+    itemsSelected: 'Items',
+    maxLeadTime: 'Delivery Lead Time',
+    recommendations: 'Recommended Restock',
+    placeOrder: 'Place Order',
+    placing: 'Placing order...',
+    orderPlaced: 'Order {number} placed.',
+    viewInOrders: 'View in Orders',
+    noItems: 'Increase the budget to see restocking recommendations.',
+    days: '{count} days',
+    loadError: 'Failed to load recommendations',
+    submitError: 'Failed to place order',
+    table: {
+      priority: 'Priority',
+      sku: 'SKU',
+      item: 'Item',
+      trend: 'Trend',
+      quantity: 'Quantity',
+      unitCost: 'Unit Cost',
+      lineTotal: 'Line Total',
+      leadTime: 'Lead Time'
+    }
+  },
   trends: {
     increasing: 'increasing',
     stable: 'stable',

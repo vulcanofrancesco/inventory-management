@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import date, timedelta
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from mock_data import inventory_items, orders, demand_forecasts, backlog_items, spending_summary, monthly_spending, category_spending, recent_transactions, purchase_orders
 
 app = FastAPI(title="Factory Inventory Management System")
@@ -89,6 +90,9 @@ class DemandForecast(BaseModel):
     forecasted_demand: int
     trend: str
     period: str
+    unit_cost: float
+    lead_time_days: int
+    current_stock: int
 
 class BacklogItem(BaseModel):
     id: str
@@ -119,6 +123,49 @@ class CreatePurchaseOrderRequest(BaseModel):
     unit_cost: float
     expected_delivery_date: str
     notes: Optional[str] = None
+
+class RestockRecommendation(BaseModel):
+    sku: str
+    name: str
+    trend: str
+    quantity: int
+    unit_cost: float
+    line_total: float
+    lead_time_days: int
+    priority_rank: int
+
+class RestockRecommendationResponse(BaseModel):
+    budget: float
+    max_budget: float
+    total_cost: float
+    items: List[RestockRecommendation]
+
+class RestockOrderLine(BaseModel):
+    sku: str
+    quantity: int = Field(gt=0)
+
+class RestockOrderRequest(BaseModel):
+    items: List[RestockOrderLine] = Field(min_length=1)
+
+class RestockOrderItem(BaseModel):
+    sku: str
+    name: str
+    quantity: int
+    unit_cost: float
+    line_total: float
+
+class RestockOrder(BaseModel):
+    id: str
+    order_number: str
+    items: List[RestockOrderItem]
+    total_value: float
+    status: str
+    submitted_date: str
+    lead_time_days: int
+    expected_delivery: str
+
+# Restocking orders live in memory only, like the rest of the app's data
+restock_orders: List[dict] = []
 
 # API endpoints
 @app.get("/")
@@ -303,6 +350,103 @@ def get_monthly_trends():
     result = list(months.values())
     result.sort(key=lambda x: x['month'])
     return result
+
+TREND_PRIORITY = {"increasing": 0, "stable": 1, "decreasing": 2}
+
+def get_restock_needs() -> list:
+    """Forecast items that need restocking, in priority order.
+
+    Need = forecasted demand not covered by current stock. Items with growing
+    demand come first, then stable, then decreasing; within the same trend the
+    bigger shortfall wins.
+    """
+    needs = []
+    for forecast in demand_forecasts:
+        shortfall = forecast["forecasted_demand"] - forecast["current_stock"]
+        if shortfall > 0:
+            needs.append({**forecast, "shortfall": shortfall})
+    needs.sort(key=lambda f: (TREND_PRIORITY.get(f["trend"], 3), -f["shortfall"]))
+    return needs
+
+@app.get("/api/restocking/recommendations", response_model=RestockRecommendationResponse)
+def get_restock_recommendations(budget: Optional[float] = None):
+    """Recommend what to restock within a budget, filled in priority order."""
+    needs = get_restock_needs()
+    max_budget = round(sum(n["shortfall"] * n["unit_cost"] for n in needs), 2)
+    if budget is None:
+        budget = max_budget
+    if budget < 0:
+        raise HTTPException(status_code=400, detail="Budget cannot be negative")
+
+    # Work in cents so float rounding can't push the total over budget
+    remaining_cents = int(round(budget * 100))
+    items = []
+    for rank, need in enumerate(needs, start=1):
+        unit_cents = int(round(need["unit_cost"] * 100))
+        # If the full shortfall doesn't fit, take as many whole units as the
+        # remaining budget allows, then keep going: cheaper lower-priority items
+        # may still fit in what's left.
+        quantity = min(need["shortfall"], remaining_cents // unit_cents)
+        if quantity <= 0:
+            continue
+        remaining_cents -= quantity * unit_cents
+        items.append({
+            "sku": need["item_sku"],
+            "name": need["item_name"],
+            "trend": need["trend"],
+            "quantity": quantity,
+            "unit_cost": need["unit_cost"],
+            "line_total": round(quantity * unit_cents / 100, 2),
+            "lead_time_days": need["lead_time_days"],
+            "priority_rank": rank,
+        })
+
+    return {
+        "budget": round(budget, 2),
+        "max_budget": max_budget,
+        "total_cost": round(sum(i["line_total"] for i in items), 2),
+        "items": items,
+    }
+
+@app.post("/api/restocking/orders", response_model=RestockOrder, status_code=201)
+def create_restock_order(request: RestockOrderRequest):
+    """Submit a restocking order; priced from the forecast data."""
+    forecasts_by_sku = {f["item_sku"]: f for f in demand_forecasts}
+    lines = []
+    for line in request.items:
+        forecast = forecasts_by_sku.get(line.sku)
+        if not forecast:
+            raise HTTPException(status_code=400, detail=f"Unknown SKU {line.sku}")
+        lines.append({
+            "sku": line.sku,
+            "name": forecast["item_name"],
+            "quantity": line.quantity,
+            "unit_cost": forecast["unit_cost"],
+            "line_total": round(line.quantity * forecast["unit_cost"], 2),
+            "lead_time_days": forecast["lead_time_days"],
+        })
+
+    # The order arrives when its slowest item does
+    lead_time = max(l["lead_time_days"] for l in lines)
+    today = date.today()
+    number = len(restock_orders) + 1
+    order = {
+        "id": str(number),
+        "order_number": f"RST-{number:04d}",
+        "items": [{k: v for k, v in l.items() if k != "lead_time_days"} for l in lines],
+        "total_value": round(sum(l["line_total"] for l in lines), 2),
+        "status": "Submitted",
+        "submitted_date": today.isoformat(),
+        "lead_time_days": lead_time,
+        "expected_delivery": (today + timedelta(days=lead_time)).isoformat(),
+    }
+    restock_orders.append(order)
+    return order
+
+@app.get("/api/restocking/orders", response_model=List[RestockOrder])
+def get_restock_orders():
+    """Submitted restocking orders, newest first."""
+    return list(reversed(restock_orders))
 
 if __name__ == "__main__":
     import uvicorn
