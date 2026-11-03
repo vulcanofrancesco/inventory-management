@@ -26,7 +26,10 @@
             {{ t('nav.restocking') }}
           </router-link>
           <router-link to="/reports" :class="{ active: $route.path === '/reports' }">
-            Reports
+            {{ t('nav.reports') }}
+          </router-link>
+          <router-link to="/backlog" :class="{ active: $route.path === '/backlog' }">
+            {{ t('nav.backlog') }}
           </router-link>
         </nav>
         <LanguageSwitcher />
@@ -216,6 +219,8 @@ body {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
+  margin-right: 1.5rem;
+  flex-shrink: 0;
 }
 
 .logo h1 {
@@ -231,15 +236,33 @@ body {
   font-weight: 400;
   padding-left: 0.75rem;
   border-left: 1px solid #e2e8f0;
+  /* two even lines instead of three as the nav grows */
+  width: 9.5rem;
+  line-height: 1.3;
+  flex-shrink: 0;
 }
 
 .nav-tabs {
   display: flex;
   gap: 0.25rem;
+  /* Take the space left between logo and menus; scroll rather than push the
+     profile menu off-screen on narrow windows */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+@media (max-width: 1520px) {
+  .subtitle {
+    display: none;
+  }
 }
 
 .nav-tabs a {
-  padding: 0.625rem 1.25rem;
+  /* 8 tabs now; narrower padding keeps the header within the window */
+  padding: 0.625rem 0.75rem;
+  white-space: nowrap;
   color: #64748b;
   text-decoration: none;
   font-weight: 500;

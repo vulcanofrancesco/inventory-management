@@ -17,7 +17,20 @@ const currentCurrency = computed(() => {
 })
 
 export function useI18n() {
+  // Look up a key in one locale only (no English fallback)
+  const lookup = (locale, key) => key.split('.').reduce(
+    (value, k) => (value && typeof value === 'object' ? value[k] : undefined),
+    translations[locale]
+  )
+
   const t = (key, params = {}) => {
+    // Singular form: use "<key>_one" when count is 1 and the current locale has
+    // it ("1 day" in English; Japanese has no plural so it never defines one)
+    if (params.count === 1) {
+      const singular = lookup(currentLocale.value, `${key}_one`)
+      if (typeof singular === 'string') return replacePlaceholders(singular, params)
+    }
+
     const keys = key.split('.')
     let value = translations[currentLocale.value]
 
