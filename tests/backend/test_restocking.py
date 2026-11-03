@@ -4,9 +4,24 @@ GET  /api/restocking/recommendations
 POST /api/restocking/orders
 GET  /api/restocking/orders
 """
-from datetime import date, timedelta
+import itertools
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+import main
 
 TREND_ORDER = {"increasing": 0, "stable": 1, "decreasing": 2}
+
+
+@pytest.fixture(autouse=True)
+def reset_restock_orders():
+    """Each test starts with no submitted orders and numbering from 1."""
+    main.restock_orders.clear()
+    main.restock_order_numbers = itertools.count(1)
+    yield
+    main.restock_orders.clear()
+    main.restock_order_numbers = itertools.count(1)
 
 
 def get_recommendations(client, budget=None):
@@ -55,9 +70,23 @@ class TestRestockRecommendations:
         assert data["items"][0]["sku"] == top["sku"]
         assert data["items"][0]["quantity"] == 10
 
-    def test_negative_budget_rejected(self, client):
-        response = client.get("/api/restocking/recommendations?budget=-5")
-        assert response.status_code == 400
+    @pytest.mark.parametrize("budget", ["-5", "inf", "-inf", "nan"])
+    def test_invalid_budget_rejected(self, client, budget):
+        response = client.get(f"/api/restocking/recommendations?budget={budget}")
+        assert response.status_code == 422
+
+    def test_budget_equal_to_cumulative_total(self, client):
+        items = get_recommendations(client)["items"]
+        exact = round(items[0]["line_total"] + items[1]["line_total"], 2)
+        data = get_recommendations(client, exact)
+        assert [i["sku"] for i in data["items"]] == [items[0]["sku"], items[1]["sku"]]
+        assert data["total_cost"] == exact
+
+    def test_ties_broken_by_bigger_shortfall(self, client):
+        items = get_recommendations(client)["items"]
+        for a, b in zip(items, items[1:]):
+            if a["trend"] == b["trend"]:
+                assert a["quantity"] >= b["quantity"]
 
 
 class TestRestockOrders:
@@ -73,11 +102,46 @@ class TestRestockOrders:
         assert order["order_number"].startswith("RST-")
         assert abs(order["total_value"] - sum(i["line_total"] for i in recs)) < 0.01
         assert order["lead_time_days"] == max(i["lead_time_days"] for i in recs)
-        expected = date.today() + timedelta(days=order["lead_time_days"])
+        today = datetime.now(timezone.utc).date()
+        expected = today + timedelta(days=order["lead_time_days"])
         assert order["expected_delivery"] == expected.isoformat()
 
         listed = client.get("/api/restocking/orders").json()
-        assert listed[0]["id"] == order["id"]  # newest first
+        assert [o["id"] for o in listed] == [order["id"]]
+
+    def test_orders_listed_newest_first(self, client):
+        first = client.post("/api/restocking/orders",
+                            json={"items": [{"sku": "WDG-001", "quantity": 1}]}).json()
+        second = client.post("/api/restocking/orders",
+                             json={"items": [{"sku": "WDG-001", "quantity": 1}]}).json()
+        listed = client.get("/api/restocking/orders").json()
+        assert [o["id"] for o in listed] == [second["id"], first["id"]]
+        assert second["order_number"] == "RST-0002"
+
+    def test_duplicate_skus_are_merged(self, client):
+        response = client.post("/api/restocking/orders", json={"items": [
+            {"sku": "WDG-001", "quantity": 2}, {"sku": "WDG-001", "quantity": 3}]})
+        assert response.status_code == 201
+        items = response.json()["items"]
+        assert len(items) == 1 and items[0]["quantity"] == 5
+
+    def test_quantity_above_need_rejected(self, client):
+        need = {i["sku"]: i["quantity"] for i in get_recommendations(client)["items"]}
+        response = client.post("/api/restocking/orders",
+                               json={"items": [{"sku": "WDG-001", "quantity": need["WDG-001"] + 1}]})
+        assert response.status_code == 400
+
+    def test_same_plan_cannot_be_ordered_twice(self, client):
+        recs = get_recommendations(client)["items"]
+        payload = {"items": [{"sku": i["sku"], "quantity": i["quantity"]} for i in recs]}
+        assert client.post("/api/restocking/orders", json=payload).status_code == 201
+        assert client.post("/api/restocking/orders", json=payload).status_code == 400
+
+    def test_ordered_units_reduce_recommendations(self, client):
+        before = {i["sku"]: i["quantity"] for i in get_recommendations(client)["items"]}
+        client.post("/api/restocking/orders", json={"items": [{"sku": "WDG-001", "quantity": 100}]})
+        after = {i["sku"]: i["quantity"] for i in get_recommendations(client)["items"]}
+        assert after["WDG-001"] == before["WDG-001"] - 100
 
     def test_unknown_sku_rejected(self, client):
         response = client.post("/api/restocking/orders",
@@ -102,6 +166,15 @@ class TestStrictPriority:
             # every item except the last one is fully covered
             for item in items[:-1]:
                 assert item["quantity"] == full[item["sku"]]
+
+    def test_partial_branch_is_exercised(self, client):
+        # Guards against seed data changes making the partial case untested
+        partials = []
+        for budget in [100, 5000, 9000, 15000, 20000]:
+            items = get_recommendations(client, budget)["items"]
+            full = {i["sku"]: i["quantity"] for i in get_recommendations(client)["items"]}
+            partials += [i for i in items if i["quantity"] < full[i["sku"]]]
+        assert partials
 
     def test_ranks_have_no_gaps(self, client):
         items = get_recommendations(client, 5000)["items"]

@@ -52,11 +52,15 @@
           <h3 class="card-title">{{ t('restocking.recommendations') }}</h3>
           <button
             class="place-order-btn"
-            :disabled="items.length === 0 || submitting || updating"
+            :disabled="items.length === 0 || submitting || updating || orderJustPlaced || !planIsCurrent"
             @click="placeOrder"
           >
             {{ submitting ? t('restocking.placing') : t('restocking.placeOrder') }}
           </button>
+        </div>
+
+        <div v-if="actionError" class="error-banner" role="alert">
+          {{ actionError }}
         </div>
 
         <div v-if="submittedOrder" class="success-banner">
@@ -67,7 +71,7 @@
         <div v-if="items.length === 0" class="empty-state">
           {{ t('restocking.noItems') }}
         </div>
-        <div v-else class="table-container" :class="{ updating }">
+        <div v-else class="table-container" :class="{ updating: updating || !planIsCurrent }">
           <table>
             <thead>
               <tr>
@@ -115,13 +119,24 @@ export default {
     const loading = ref(true)
     const updating = ref(false)
     const submitting = ref(false)
+    // Full-page error: only when the first load fails
     const error = ref(null)
+    // Inline error: a failed slider refresh or order keeps the page usable
+    const actionError = ref(null)
 
     const budget = ref(0)
     const maxBudget = ref(0)
     const totalCost = ref(0)
     const items = ref([])
     const submittedOrder = ref(null)
+    // Blocks re-submitting the same plan until the recommendations change
+    const orderJustPlaced = ref(false)
+    // Budget the current recommendations were fetched for; the watcher skips
+    // values already fetched (e.g. the budget set right after the first load)
+    const lastFetchedBudget = ref(null)
+    // The table only matches the slider once a fetch for this budget succeeded;
+    // until then (debounce window, failed refresh) ordering is blocked
+    const planIsCurrent = computed(() => lastFetchedBudget.value === budget.value)
 
     // Round the slider's upper bound up to the next $100 step so the
     // "cover everything" amount is always reachable.
@@ -132,6 +147,12 @@ export default {
 
     const formatMoney = (amount, decimals = 0) =>
       formatCurrencyWithDecimals(amount, currentCurrency.value, decimals)
+
+    // Prefer the API's explanation (e.g. "only 12 still needed") over axios' generic text
+    const errorDetail = (err) => {
+      const detail = err.response?.data?.detail
+      return typeof detail === 'string' ? detail : err.message
+    }
 
     const applyRecommendations = (data) => {
       maxBudget.value = data.max_budget
@@ -146,7 +167,10 @@ export default {
         // No budget param: the backend returns the full plan and its cost
         const data = await api.getRestockRecommendations()
         applyRecommendations(data)
-        budget.value = Math.ceil(data.max_budget / 100) * 100
+        // Any budget at or above max_budget returns this same plan, so the
+        // rounded-up slider value doesn't need a second request
+        lastFetchedBudget.value = Math.ceil(data.max_budget / 100) * 100
+        budget.value = lastFetchedBudget.value
       } catch (err) {
         error.value = t('restocking.loadError') + ': ' + err.message
       } finally {
@@ -162,30 +186,43 @@ export default {
       try {
         updating.value = true
         const data = await api.getRestockRecommendations(value)
-        if (thisRequest === requestId) applyRecommendations(data)
+        if (thisRequest === requestId) {
+          applyRecommendations(data)
+          lastFetchedBudget.value = value
+          actionError.value = null
+        }
       } catch (err) {
-        error.value = t('restocking.loadError') + ': ' + err.message
+        if (thisRequest === requestId) {
+          actionError.value = t('restocking.loadError') + ': ' + errorDetail(err)
+        }
       } finally {
         if (thisRequest === requestId) updating.value = false
       }
     }
 
     watch(budget, (value) => {
-      if (loading.value) return
+      if (loading.value || value === lastFetchedBudget.value) return
       submittedOrder.value = null
+      orderJustPlaced.value = false
       clearTimeout(debounceTimer)
       debounceTimer = setTimeout(() => refreshForBudget(value), 250)
     })
 
     const placeOrder = async () => {
-      if (items.value.length === 0) return
+      if (items.value.length === 0 || submitting.value || orderJustPlaced.value || !planIsCurrent.value) return
       try {
         submitting.value = true
+        actionError.value = null
         submittedOrder.value = await api.submitRestockOrder(
           items.value.map(item => ({ sku: item.sku, quantity: item.quantity }))
         )
+        orderJustPlaced.value = true
+        // Ordered units no longer count as needed, so show what is left
+        const data = await api.getRestockRecommendations(budget.value)
+        applyRecommendations(data)
+        lastFetchedBudget.value = budget.value
       } catch (err) {
-        error.value = t('restocking.submitError') + ': ' + err.message
+        actionError.value = t('restocking.submitError') + ': ' + errorDetail(err)
       } finally {
         submitting.value = false
       }
@@ -200,6 +237,9 @@ export default {
       updating,
       submitting,
       error,
+      actionError,
+      orderJustPlaced,
+      planIsCurrent,
       budget,
       maxBudget,
       sliderMax,
@@ -296,6 +336,16 @@ export default {
   color: #047857;
   font-weight: 600;
   margin-left: 0.5rem;
+}
+
+.error-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
 }
 
 .empty-state {
