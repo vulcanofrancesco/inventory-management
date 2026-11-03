@@ -8,6 +8,7 @@ export default {
     demandForecast: '需要予測',
     restocking: '補充発注',
     reports: 'レポート',
+    backlog: 'バックログ',
     companyName: '触媒コンポーネンツ',
     subtitle: '在庫管理システム'
   },
@@ -57,7 +58,11 @@ export default {
       daysDelayed: '遅延日数',
       priority: '優先度',
       unitsShort: '単位不足',
-      days: '日'
+      days: '日',
+      daysCount: '{count}日',
+      actions: '操作',
+      createPO: '発注書を作成',
+      viewPO: '発注書を表示'
     },
     topProducts: {
       title: '収益別トップ製品',
@@ -253,6 +258,30 @@ export default {
       leadTime: 'リードタイム'
     }
   },
+  purchaseOrder: {
+    createTitle: '発注書を作成',
+    viewTitle: '発注書',
+    forItem: 'バックログ項目 {order}（{sku}）',
+    supplier: '仕入先',
+    supplierPlaceholder: '仕入先名',
+    quantity: '数量',
+    unitCost: '単価',
+    expectedDelivery: '納品予定日',
+    notes: '備考',
+    notesPlaceholder: '任意',
+    total: '合計',
+    status: 'ステータス',
+    created: '作成日',
+    poNumber: '発注番号',
+    cancel: 'キャンセル',
+    close: '閉じる',
+    submit: '発注書を作成',
+    submitting: '作成中...',
+    loading: '発注書を読み込み中...',
+    loadError: '発注書の読み込みに失敗しました',
+    createError: '発注書の作成に失敗しました'
+  },
+
   trends: {
     increasing: '増加',
     stable: '安定',

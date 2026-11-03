@@ -2406,7 +2406,8 @@
     "category": "Sensors",
     "order_date": "2025-11-09T12:29:00",
     "expected_delivery": "2025-11-18T12:29:00",
-    "total_value": 128524.0
+    "total_value": 128524.0,
+    "actual_delivery": "2025-11-18T12:29:00"
   },
   {
     "id": "97",
@@ -2670,7 +2671,8 @@
     "category": "Sensors",
     "order_date": "2025-12-14T11:23:00",
     "expected_delivery": "2025-12-21T11:23:00",
-    "total_value": 78679.9
+    "total_value": 78679.9,
+    "actual_delivery": "2025-12-21T11:23:00"
   },
   {
     "id": "109",
@@ -2782,7 +2784,8 @@
     "category": "Actuators",
     "order_date": "2025-12-26T15:02:00",
     "expected_delivery": "2026-01-05T15:02:00",
-    "total_value": 734470.75
+    "total_value": 734470.75,
+    "actual_delivery": "2026-01-05T15:02:00"
   },
   {
     "id": "113",
@@ -2807,7 +2810,8 @@
     "category": "Controllers",
     "order_date": "2025-12-18T09:45:00",
     "expected_delivery": "2025-12-27T09:45:00",
-    "total_value": 57513.5
+    "total_value": 57513.5,
+    "actual_delivery": "2025-12-27T09:45:00"
   },
   {
     "id": "114",
@@ -5497,7 +5501,8 @@
     "category": "Sensors",
     "order_date": "2025-11-05T12:29:00",
     "expected_delivery": "2025-11-14T12:29:00",
-    "total_value": 115830.0
+    "total_value": 115830.0,
+    "actual_delivery": "2025-11-14T12:29:00"
   },
   {
     "id": "222",
@@ -5761,7 +5766,8 @@
     "category": "Sensors",
     "order_date": "2025-12-18T11:23:00",
     "expected_delivery": "2025-12-25T11:23:00",
-    "total_value": 83395.29
+    "total_value": 83395.29,
+    "actual_delivery": "2025-12-25T11:23:00"
   },
   {
     "id": "234",
@@ -5873,7 +5879,8 @@
     "category": "Actuators",
     "order_date": "2025-12-31T15:02:00",
     "expected_delivery": "2026-01-10T15:02:00",
-    "total_value": 789658.25
+    "total_value": 789658.25,
+    "actual_delivery": "2026-01-10T15:02:00"
   },
   {
     "id": "238",
@@ -5898,7 +5905,8 @@
     "category": "Controllers",
     "order_date": "2025-12-22T09:45:00",
     "expected_delivery": "2025-12-31T09:45:00",
-    "total_value": 47019.25
+    "total_value": 47019.25,
+    "actual_delivery": "2025-12-31T09:45:00"
   },
   {
     "id": "239",

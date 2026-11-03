@@ -29,7 +29,7 @@
             <div class="kpi-value">{{ ordersData.fulfilled }}</div>
             <div class="kpi-goal">{{ t('dashboard.kpi.goal') }}: {{ ordersData.goal }} ({{ calculatePercentage(ordersData.fulfilled, ordersData.goal) }}%)</div>
             <div class="kpi-progress-bar">
-              <div class="kpi-progress" :style="{ width: calculatePercentage(ordersData.fulfilled, ordersData.goal) + '%' }"></div>
+              <div class="kpi-progress" :style="{ width: Math.min(calculatePercentage(ordersData.fulfilled, ordersData.goal), 100) + '%' }"></div>
             </div>
           </div>
 
@@ -38,9 +38,9 @@
               <span class="kpi-label">{{ t('dashboard.kpi.orderFillRate') }}</span>
             </div>
             <div class="kpi-value">{{ fillRate }}%</div>
-            <div class="kpi-goal">{{ t('dashboard.kpi.goal') }}: 95% ({{ fillRate - 95 > 0 ? '+' : '' }}{{ (fillRate - 95).toFixed(2) }}%)</div>
+            <div class="kpi-goal">{{ t('dashboard.kpi.goal') }}: {{ FILL_RATE_GOAL }}% ({{ fillRate - FILL_RATE_GOAL > 0 ? '+' : '' }}{{ (fillRate - FILL_RATE_GOAL).toFixed(1) }}%)</div>
             <div class="kpi-progress-bar">
-              <div class="kpi-progress success" :style="{ width: (fillRate / 95 * 100) + '%' }"></div>
+              <div :class="['kpi-progress', fillRate >= FILL_RATE_GOAL ? 'success' : '']" :style="{ width: Math.min(fillRate / FILL_RATE_GOAL * 100, 100) + '%' }"></div>
             </div>
           </div>
 
@@ -87,18 +87,18 @@
                 <svg viewBox="0 0 200 200" class="donut-svg-compact">
                   <circle cx="100" cy="100" r="65" fill="none" stroke="#e2e8f0" stroke-width="25"/>
                   <circle cx="100" cy="100" r="65" fill="none" stroke="#10b981" stroke-width="25"
-                    :stroke-dasharray="`${getCircleSegment(statusData.delivered)} 408`"
+                    :stroke-dasharray="`${getCircleSegment(statusData.delivered)} ${DONUT_CIRCUMFERENCE}`"
                     stroke-dashoffset="0" transform="rotate(-90 100 100)"/>
                   <circle cx="100" cy="100" r="65" fill="none" stroke="#3b82f6" stroke-width="25"
-                    :stroke-dasharray="`${getCircleSegment(statusData.shipped)} 408`"
+                    :stroke-dasharray="`${getCircleSegment(statusData.shipped)} ${DONUT_CIRCUMFERENCE}`"
                     :stroke-dashoffset="`-${getCircleSegment(statusData.delivered)}`"
                     transform="rotate(-90 100 100)"/>
                   <circle cx="100" cy="100" r="65" fill="none" stroke="#f59e0b" stroke-width="25"
-                    :stroke-dasharray="`${getCircleSegment(statusData.processing)} 408`"
+                    :stroke-dasharray="`${getCircleSegment(statusData.processing)} ${DONUT_CIRCUMFERENCE}`"
                     :stroke-dashoffset="`-${getCircleSegment(statusData.delivered) + getCircleSegment(statusData.shipped)}`"
                     transform="rotate(-90 100 100)"/>
                   <circle cx="100" cy="100" r="65" fill="none" stroke="#ef4444" stroke-width="25"
-                    :stroke-dasharray="`${getCircleSegment(statusData.backordered)} 408`"
+                    :stroke-dasharray="`${getCircleSegment(statusData.backordered)} ${DONUT_CIRCUMFERENCE}`"
                     :stroke-dashoffset="`-${getCircleSegment(statusData.delivered) + getCircleSegment(statusData.shipped) + getCircleSegment(statusData.processing)}`"
                     transform="rotate(-90 100 100)"/>
                   <text x="100" y="90" text-anchor="middle" class="donut-center-label">{{ t('dashboard.orderHealth.total') }}</text>
@@ -180,7 +180,7 @@
                   <th>{{ t('dashboard.inventoryShortages.shortage') }}</th>
                   <th>{{ t('dashboard.inventoryShortages.daysDelayed') }}</th>
                   <th>{{ t('dashboard.inventoryShortages.priority') }}</th>
-                  <th>Actions</th>
+                  <th>{{ t('dashboard.inventoryShortages.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -200,7 +200,7 @@
                   </td>
                   <td @click="showBacklogDetail(item)" style="cursor: pointer;">
                     <span :style="{ color: item.days_delayed > 7 ? '#ef4444' : '#f59e0b', fontWeight: 600 }">
-                      {{ item.days_delayed }} {{ t('dashboard.inventoryShortages.days') }}
+                      {{ t('dashboard.inventoryShortages.daysCount', { count: item.days_delayed }) }}
                     </span>
                   </td>
                   <td @click="showBacklogDetail(item)" style="cursor: pointer;">
@@ -214,14 +214,14 @@
                       @click.stop="openPOModal(item)"
                       class="po-button create"
                     >
-                      Create PO
+                      {{ t('dashboard.inventoryShortages.createPO') }}
                     </button>
                     <button
                       v-else
                       @click.stop="viewPO(item)"
                       class="po-button view"
                     >
-                      View PO
+                      {{ t('dashboard.inventoryShortages.viewPO') }}
                     </button>
                   </td>
                 </tr>
@@ -304,12 +304,22 @@ import { useI18n } from '../composables/useI18n'
 import { formatCurrency } from '../utils/currency'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 import BacklogDetailModal from '../components/BacklogDetailModal.vue'
+import PurchaseOrderModal from '../components/PurchaseOrderModal.vue'
+
+// Order Health donut: radius 65 in the SVG
+const DONUT_CIRCUMFERENCE = 2 * Math.PI * 65
+
+// Yearly target for delivered orders; scaled down for a quarter or a month
+const YEARLY_FULFILLED_GOAL = 200
+// Share of orders that are not backordered
+const FILL_RATE_GOAL = 95
 
 export default {
   name: 'Dashboard',
   components: {
     ProductDetailModal,
     BacklogDetailModal,
+    PurchaseOrderModal
   },
   setup() {
     const { t, currentCurrency, translateProductName, translateWarehouse } = useI18n()
@@ -337,8 +347,21 @@ export default {
       getCurrentFilters
     } = useFilters()
 
-    const ordersData = ref({ fulfilled: 187, goal: 200 })
-    const fillRate = ref(96.8)
+    const ordersData = computed(() => {
+      const period = selectedPeriod.value
+      const months = period === 'all' ? 12 : period.startsWith('Q') ? 3 : 1
+      return {
+        fulfilled: statusData.value.delivered,
+        goal: Math.round(YEARLY_FULFILLED_GOAL * months / 12)
+      }
+    })
+
+    // Fill rate: orders that could be filled from stock (everything not backordered)
+    const fillRate = computed(() => {
+      const total = totalOrders.value
+      if (total === 0) return 0
+      return Number(((total - statusData.value.backordered) / total * 100).toFixed(1))
+    })
 
     const revenueGoal = computed(() => {
       // $800K per month, so if looking at all months (12 months), goal is 12 * 800K = 9.6M
@@ -529,19 +552,9 @@ export default {
         }
       })
 
-      // Convert to array, sort by first order date (earliest first = January at top), then by revenue, and take top 12
+      // "Top Products by Revenue": highest revenue first, top 12
       return Object.values(productMap)
-        .sort((a, b) => {
-          // Sort by first order date (earliest first)
-          // This ensures products first ordered in January appear before those first ordered in December
-          const dateA = new Date(a.firstOrderDate || '9999-12-31')
-          const dateB = new Date(b.firstOrderDate || '9999-12-31')
-          if (dateA.getTime() !== dateB.getTime()) {
-            return dateA.getTime() - dateB.getTime() // Earlier dates come first
-          }
-          // If dates are equal, sort by revenue (highest first)
-          return b.revenue - a.revenue
-        })
+        .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 12)
     })
 
@@ -592,7 +605,8 @@ export default {
     })
 
     const getCircleSegment = (value) => {
-      return totalOrders.value > 0 ? (value / totalOrders.value) * 440 : 0
+      // Must match the circle's circumference, or the segments overrun and overlap
+      return totalOrders.value > 0 ? (value / totalOrders.value) * DONUT_CIRCUMFERENCE : 0
     }
 
     const getStockBadge = (level) => {
@@ -667,7 +681,7 @@ export default {
       const item = allBacklogItems.value.find(b => b.id === poData.backlog_item_id)
       if (item) {
         item.purchase_order_id = poData.id
-        item.purchase_order = poData
+        item.has_purchase_order = true
       }
       showPOModal.value = false
     }
@@ -703,6 +717,8 @@ export default {
       formatDate,
       revenueGoal,
       revenueGoalDisplay,
+      FILL_RATE_GOAL,
+      DONUT_CIRCUMFERENCE,
       showProductModal,
       selectedProduct,
       showProductDetail,
