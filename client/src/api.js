@@ -2,6 +2,15 @@ import axios from 'axios'
 
 const API_BASE_URL = 'http://localhost:8001/api'
 
+const buildFilterParams = (filters = {}) => {
+  const params = new URLSearchParams()
+  if (filters.warehouse && filters.warehouse !== 'all') params.append('warehouse', filters.warehouse)
+  if (filters.category && filters.category !== 'all') params.append('category', filters.category)
+  if (filters.status && filters.status !== 'all') params.append('status', filters.status)
+  if (filters.month && filters.month !== 'all') params.append('month', filters.month)
+  return params
+}
+
 export const api = {
   async getInventory(filters = {}) {
     const params = new URLSearchParams()
@@ -51,6 +60,18 @@ export const api = {
     if (filters.month && filters.month !== 'all') params.append('month', filters.month)
 
     const response = await axios.get(`${API_BASE_URL}/dashboard/summary?${params.toString()}`)
+    return response.data
+  },
+
+  async getQuarterlyReports(filters = {}) {
+    const params = buildFilterParams(filters)
+    const response = await axios.get(`${API_BASE_URL}/reports/quarterly?${params.toString()}`)
+    return response.data
+  },
+
+  async getMonthlyTrends(filters = {}) {
+    const params = buildFilterParams(filters)
+    const response = await axios.get(`${API_BASE_URL}/reports/monthly-trends?${params.toString()}`)
     return response.data
   },
 
