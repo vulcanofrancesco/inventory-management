@@ -383,12 +383,13 @@ def get_restock_recommendations(budget: Optional[float] = None):
     items = []
     for rank, need in enumerate(needs, start=1):
         unit_cents = int(round(need["unit_cost"] * 100))
-        # If the full shortfall doesn't fit, take as many whole units as the
-        # remaining budget allows, then keep going: cheaper lower-priority items
-        # may still fit in what's left.
+        # Strict priority: the first item that doesn't fully fit gets as many
+        # whole units as the budget allows, and filling stops there. Lower
+        # priority items never jump ahead just because they are cheap.
         quantity = min(need["shortfall"], remaining_cents // unit_cents)
+        partial = quantity < need["shortfall"]
         if quantity <= 0:
-            continue
+            break
         remaining_cents -= quantity * unit_cents
         items.append({
             "sku": need["item_sku"],
@@ -400,6 +401,8 @@ def get_restock_recommendations(budget: Optional[float] = None):
             "lead_time_days": need["lead_time_days"],
             "priority_rank": rank,
         })
+        if partial:
+            break
 
     return {
         "budget": round(budget, 2),

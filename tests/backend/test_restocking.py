@@ -92,3 +92,17 @@ class TestRestockOrders:
     def test_empty_order_rejected(self, client):
         response = client.post("/api/restocking/orders", json={"items": []})
         assert response.status_code == 422
+
+
+class TestStrictPriority:
+    def test_only_last_item_can_be_partial(self, client):
+        full = {i["sku"]: i["quantity"] for i in get_recommendations(client)["items"]}
+        for budget in [100, 5000, 9000, 15000, 20000]:
+            items = get_recommendations(client, budget)["items"]
+            # every item except the last one is fully covered
+            for item in items[:-1]:
+                assert item["quantity"] == full[item["sku"]]
+
+    def test_ranks_have_no_gaps(self, client):
+        items = get_recommendations(client, 5000)["items"]
+        assert [i["priority_rank"] for i in items] == list(range(1, len(items) + 1))

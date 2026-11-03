@@ -31,11 +31,11 @@
       <div class="stats-grid">
         <div class="stat-card info">
           <div class="stat-label">{{ t('restocking.selectedTotal') }}</div>
-          <div class="stat-value">{{ formatMoney(totalCost) }}</div>
+          <div class="stat-value">{{ formatMoney(totalCost, 2) }}</div>
         </div>
         <div class="stat-card success">
           <div class="stat-label">{{ t('restocking.remaining') }}</div>
-          <div class="stat-value">{{ formatMoney(Math.max(0, budget - totalCost)) }}</div>
+          <div class="stat-value">{{ formatMoney(Math.max(0, budget - totalCost), 2) }}</div>
         </div>
         <div class="stat-card warning">
           <div class="stat-label">{{ t('restocking.itemsSelected') }}</div>
