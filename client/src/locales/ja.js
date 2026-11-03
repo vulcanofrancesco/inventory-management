@@ -6,6 +6,7 @@ export default {
     orders: '注文',
     finance: '財務',
     demandForecast: '需要予測',
+    restocking: '補充発注',
     companyName: '触媒コンポーネンツ',
     subtitle: '在庫管理システム'
   },
@@ -106,6 +107,18 @@ export default {
     title: '注文',
     description: '顧客注文の表示と管理',
     allOrders: 'すべての注文',
+    submittedOrders: '発注済みの補充注文',
+    submittedTable: {
+      orderNumber: '注文番号',
+      items: '品目',
+      total: '合計',
+      submitted: '発注日',
+      leadTime: 'リードタイム',
+      expectedDelivery: '納品予定日',
+      status: 'ステータス'
+    },
+    leadTimeDays: '{count}日',
+    submittedStatus: '発注済み',
     totalOrders: '総注文数',
     totalRevenue: '総収益',
     avgOrderValue: '平均注文額',
@@ -210,6 +223,35 @@ export default {
   },
 
   // Trends
+  restocking: {
+    title: '補充発注',
+    description: '予算を設定し、需要予測で優先度の高い品目を補充します',
+    budget: '利用可能な予算',
+    coverAll: 'すべての需要を充足',
+    selectedTotal: '注文合計',
+    remaining: '残り予算',
+    itemsSelected: '品目数',
+    maxLeadTime: '納品リードタイム',
+    recommendations: '推奨補充品目',
+    placeOrder: '発注する',
+    placing: '発注中...',
+    orderPlaced: '注文 {number} を発注しました。',
+    viewInOrders: '注文で確認',
+    noItems: '予算を増やすと補充の推奨が表示されます。',
+    days: '{count}日',
+    loadError: '推奨の読み込みに失敗しました',
+    submitError: '発注に失敗しました',
+    table: {
+      priority: '優先度',
+      sku: 'SKU',
+      item: '品目',
+      trend: 'トレンド',
+      quantity: '数量',
+      unitCost: '単価',
+      lineTotal: '小計',
+      leadTime: 'リードタイム'
+    }
+  },
   trends: {
     increasing: '増加',
     stable: '安定',

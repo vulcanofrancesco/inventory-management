@@ -27,6 +27,50 @@
         </div>
       </div>
 
+      <div v-if="submittedOrders.length > 0" class="card submitted-card">
+        <div class="card-header">
+          <h3 class="card-title">{{ t('orders.submittedOrders') }} ({{ submittedOrders.length }})</h3>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ t('orders.submittedTable.orderNumber') }}</th>
+                <th>{{ t('orders.submittedTable.items') }}</th>
+                <th>{{ t('orders.submittedTable.status') }}</th>
+                <th>{{ t('orders.submittedTable.submitted') }}</th>
+                <th>{{ t('orders.submittedTable.leadTime') }}</th>
+                <th>{{ t('orders.submittedTable.expectedDelivery') }}</th>
+                <th class="submitted-total">{{ t('orders.submittedTable.total') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="order in submittedOrders" :key="order.id">
+                <td><strong>{{ order.order_number }}</strong></td>
+                <td>
+                  <details class="items-details">
+                    <summary class="items-summary">
+                      {{ t('orders.itemsCount', { count: order.items.length }) }}
+                    </summary>
+                    <div class="items-dropdown">
+                      <div v-for="item in order.items" :key="item.sku" class="item-entry">
+                        <span class="item-name">{{ item.name }}</span>
+                        <span class="item-meta">{{ t('orders.quantity') }}: {{ item.quantity }} @ {{ formatMoney(item.unit_cost, 2) }}</span>
+                      </div>
+                    </div>
+                  </details>
+                </td>
+                <td><span class="badge info">{{ t('orders.submittedStatus') }}</span></td>
+                <td>{{ formatDate(order.submitted_date + 'T00:00:00') }}</td>
+                <td>{{ t('orders.leadTimeDays', { count: order.lead_time_days }) }}</td>
+                <td>{{ formatDate(order.expected_delivery + 'T00:00:00') }}</td>
+                <td class="submitted-total"><strong>{{ formatMoney(order.total_value, 2) }}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">{{ t('orders.allOrders') }} ({{ orders.length }})</h3>
@@ -83,6 +127,7 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { api } from '../api'
 import { useFilters } from '../composables/useFilters'
 import { useI18n } from '../composables/useI18n'
+import { formatCurrencyWithDecimals } from '../utils/currency'
 
 export default {
   name: 'Orders',
@@ -95,6 +140,8 @@ export default {
     const loading = ref(true)
     const error = ref(null)
     const orders = ref([])
+    // Restocking orders placed from the Restocking tab (not affected by the filters)
+    const submittedOrders = ref([])
 
     // Use shared filters
     const {
@@ -153,13 +200,30 @@ export default {
       })
     }
 
-    onMounted(loadOrders)
+    const loadSubmittedOrders = async () => {
+      try {
+        submittedOrders.value = await api.getRestockOrders()
+      } catch (err) {
+        // Keep the page usable if only this section fails
+        console.error('Failed to load submitted orders:', err)
+      }
+    }
+
+    const formatMoney = (amount, decimals = 0) =>
+      formatCurrencyWithDecimals(amount, currentCurrency.value, decimals)
+
+    onMounted(() => {
+      loadOrders()
+      loadSubmittedOrders()
+    })
 
     return {
       t,
       loading,
       error,
       orders,
+      submittedOrders,
+      formatMoney,
       getOrdersByStatus,
       getOrderStatusClass,
       formatDate,
@@ -172,6 +236,14 @@ export default {
 </script>
 
 <style scoped>
+.submitted-card {
+  margin-bottom: 1.5rem;
+}
+
+.submitted-total {
+  text-align: right;
+}
+
 /* Fixed table layout to prevent column shifting */
 .orders-table {
   table-layout: fixed;
